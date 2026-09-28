@@ -13,6 +13,7 @@ import type { Pace, PlannerInput, TripPlan } from "@/lib/types";
 import { destinationOptions, originOptions, preferenceOptions } from "@/lib/trips/options";
 import { cn, countDays, formatCNY, paceMeta } from "@/lib/utils";
 import { Button } from "@/components/ui";
+import { CityCombobox } from "@/components/city-combobox";
 
 /**
  * 「调整条件并重算」面板。
@@ -45,11 +46,22 @@ export function PlanConditionsEditor({ plan }: { plan: TripPlan }) {
   const days = countDays(draft.startDate, draft.endDate);
   const dayValid = days >= 3 && days <= 7;
 
+  // 出发地/目的地改成可自由输入后要自己校验空值（和 planner-form.tsx 同样的处理）
+  const draftOrigin = draft.origin.trim();
+  const draftDestination = draft.destination.trim();
+  const placeIssue =
+    !draftOrigin || !draftDestination
+      ? "出发地和目的地都要填写"
+      : draftOrigin === draftDestination
+        ? "出发地和目的地不能相同"
+        : null;
+
   /** 只收集改动过的字段 */
   function buildPatch(): Partial<PlannerInput> {
     const patch: Partial<PlannerInput> = {};
-    if (draft.origin !== base.origin) patch.origin = draft.origin;
-    if (draft.destination !== base.destination) patch.destination = draft.destination;
+    // 城市名比较前先 trim：自由输入可能带首尾空格，不处理会误判成「改过了」
+    if (draftOrigin !== base.origin) patch.origin = draftOrigin;
+    if (draftDestination !== base.destination) patch.destination = draftDestination;
     if (draft.startDate !== base.startDate) patch.startDate = draft.startDate;
     if (draft.endDate !== base.endDate) patch.endDate = draft.endDate;
     if (draft.budget !== base.budget) patch.budget = draft.budget;
@@ -77,7 +89,7 @@ export function PlanConditionsEditor({ plan }: { plan: TripPlan }) {
   }
 
   async function handleSubmit() {
-    if (changedCount === 0 || !dayValid || pending) return;
+    if (changedCount === 0 || !dayValid || placeIssue || pending) return;
 
     setPending(true);
     setError(null);
@@ -157,6 +169,7 @@ export function PlanConditionsEditor({ plan }: { plan: TripPlan }) {
         <div className="border-t border-ink-100 p-5">
           <p className="text-[11px] leading-relaxed text-ink-500">
             改完点下方按钮，会用新条件重新生成一份行程，覆盖当前的每日安排。
+            出发地和目的地可以填任意城市，不限于建议列表里的。
           </p>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -164,32 +177,27 @@ export function PlanConditionsEditor({ plan }: { plan: TripPlan }) {
               <label className="label" htmlFor="cond-origin">
                 出发地
               </label>
-              <select
+              {/* 和规划页共用同一个组件，保证两处行为一致 */}
+              <CityCombobox
                 id="cond-origin"
-                className="field"
                 value={draft.origin}
-                onChange={(event) => update("origin", event.target.value)}
-              >
-                {originOptions.map((city) => (
-                  <option key={city}>{city}</option>
-                ))}
-              </select>
+                onChange={(next) => update("origin", next)}
+                options={originOptions}
+                ariaLabel="出发地"
+              />
             </div>
 
             <div>
               <label className="label" htmlFor="cond-destination">
                 目的地
               </label>
-              <select
+              <CityCombobox
                 id="cond-destination"
-                className="field"
                 value={draft.destination}
-                onChange={(event) => update("destination", event.target.value)}
-              >
-                {destinationOptions.map((city) => (
-                  <option key={city}>{city}</option>
-                ))}
-              </select>
+                onChange={(next) => update("destination", next)}
+                options={destinationOptions}
+                ariaLabel="目的地"
+              />
             </div>
 
             <div>
@@ -323,7 +331,7 @@ export function PlanConditionsEditor({ plan }: { plan: TripPlan }) {
           <div className="mt-5 flex flex-wrap items-center gap-2">
             <Button
               onClick={handleSubmit}
-              disabled={pending || !dayValid || changedCount === 0}
+              disabled={pending || !dayValid || changedCount === 0 || Boolean(placeIssue)}
             >
               {pending ? (
                 <>
@@ -337,7 +345,12 @@ export function PlanConditionsEditor({ plan }: { plan: TripPlan }) {
             <Button variant="ghost" onClick={handleCancel} disabled={pending}>
               取消
             </Button>
-            {changedCount === 0 && !pending ? (
+            {placeIssue ? (
+              <span className="flex items-center gap-1.5 text-[11px] text-rose-500">
+                <AlertTriangle size={12} />
+                {placeIssue}
+              </span>
+            ) : changedCount === 0 && !pending ? (
               <span className="text-[11px] text-ink-400">还没有改动任何条件</span>
             ) : null}
           </div>

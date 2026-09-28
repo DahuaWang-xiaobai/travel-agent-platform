@@ -18,6 +18,7 @@ import type { Pace, PlannerInput, QuotaState, TripPlan } from "@/lib/types";
 import { destinationOptions, originOptions, preferenceOptions } from "@/lib/trips/options";
 import { cn, countDays, formatCNY, paceMeta } from "@/lib/utils";
 import { Badge, Button, EmptyState, LinkButton, ProgressBar } from "@/components/ui";
+import { CityCombobox } from "@/components/city-combobox";
 import { TripPreview } from "@/components/trip-view";
 
 /** 生成阶段文案，对应 PRD 的「长任务必须有状态反馈」 */
@@ -69,6 +70,18 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
   const days = countDays(input.startDate, input.endDate);
   const dayValid = days >= 3 && days <= 7;
 
+  // 出发地/目的地改成了可自由输入：<select> 天然不会为空，但 <input> 会。
+  // 所以这里要自己校验，不能把空城市提交给后端（后端会返回 400，体验很差）。
+  const origin = input.origin.trim();
+  const destination = input.destination.trim();
+  const placeIssue =
+    !origin || !destination
+      ? "出发地和目的地都要填写"
+      : origin === destination
+        ? "出发地和目的地不能相同"
+        : null;
+  const formValid = dayValid && !placeIssue;
+
   useEffect(() => {
     return () => {
       if (timer.current) clearInterval(timer.current);
@@ -96,7 +109,7 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
   }
 
   async function startPlanning() {
-    if (!dayValid || phase === "running" || exhausted) return;
+    if (!formValid || phase === "running" || exhausted) return;
 
     setPhase("running");
     setProgress(0);
@@ -182,33 +195,38 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
                 <label className="label" htmlFor="origin">
                   出发地
                 </label>
-                <select
+                <CityCombobox
                   id="origin"
-                  className="field"
                   value={input.origin}
-                  onChange={(event) => update("origin", event.target.value)}
-                >
-                  {originOptions.map((city) => (
-                    <option key={city}>{city}</option>
-                  ))}
-                </select>
+                  onChange={(next) => update("origin", next)}
+                  options={originOptions}
+                  ariaLabel="出发地"
+                />
               </div>
               <div>
                 <label className="label" htmlFor="destination">
                   目的地
                 </label>
-                <select
+                <CityCombobox
                   id="destination"
-                  className="field"
                   value={input.destination}
-                  onChange={(event) => update("destination", event.target.value)}
-                >
-                  {destinationOptions.map((city) => (
-                    <option key={city}>{city}</option>
-                  ))}
-                </select>
+                  onChange={(next) => update("destination", next)}
+                  options={destinationOptions}
+                  ariaLabel="目的地"
+                />
               </div>
             </div>
+
+            {placeIssue ? (
+              <p className="flex items-center gap-1.5 text-[11px] text-rose-500">
+                <AlertTriangle size={12} />
+                {placeIssue}
+              </p>
+            ) : (
+              <p className="text-[11px] text-ink-400">
+                可以填任意城市，不限于建议列表里的
+              </p>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -348,7 +366,7 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
               className="w-full"
               size="lg"
               onClick={startPlanning}
-              disabled={!dayValid || phase === "running" || exhausted}
+              disabled={!formValid || phase === "running" || exhausted}
             >
               {phase === "running" ? (
                 <>
