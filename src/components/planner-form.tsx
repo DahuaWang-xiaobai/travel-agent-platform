@@ -14,7 +14,7 @@ import {
   Sparkles,
   Wand2,
 } from "lucide-react";
-import type { Pace, PlannerInput, TripPlan } from "@/lib/types";
+import type { Pace, PlannerInput, QuotaState, TripPlan } from "@/lib/types";
 import { destinationOptions, originOptions, preferenceOptions } from "@/lib/trips/options";
 import { cn, countDays, formatCNY, paceMeta } from "@/lib/utils";
 import { Badge, Button, EmptyState, LinkButton, ProgressBar } from "@/components/ui";
@@ -48,7 +48,7 @@ const defaultInput: PlannerInput = {
 
 type Phase = "idle" | "running" | "done" | "error";
 
-export function PlannerForm() {
+export function PlannerForm({ quota }: { quota: QuotaState }) {
   const router = useRouter();
 
   const [input, setInput] = useState<PlannerInput>(defaultInput);
@@ -58,6 +58,13 @@ export function PlannerForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [provider, setProvider] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // 额度用完就禁用按钮。两个来源：
+  //   1. 服务端渲染时读到的 quota（页面刚打开就已知用完）
+  //   2. 请求返回 429 后本地置位（不用等 router.refresh 走完一整轮才更新界面）
+  // 注意管理员（unlimited）和配额表缺失（unavailable）都不算用完。
+  const [blockedByServer, setBlockedByServer] = useState(false);
+  const exhausted = blockedByServer || (quota.status === "active" && quota.remaining === 0);
 
   const days = countDays(input.startDate, input.endDate);
   const dayValid = days >= 3 && days <= 7;
@@ -89,7 +96,7 @@ export function PlannerForm() {
   }
 
   async function startPlanning() {
-    if (!dayValid || phase === "running") return;
+    if (!dayValid || phase === "running" || exhausted) return;
 
     setPhase("running");
     setProgress(0);
@@ -114,6 +121,15 @@ export function PlannerForm() {
         provider?: string;
         error?: string;
       };
+
+      // 429 = 今日额度用完。这不是「生成出错」，而是成本防护生效了，
+      // 界面要给出专门的提示，并且不要再引导用户点重试。
+      if (response.status === 429) {
+        setBlockedByServer(true);
+        setPhase("error");
+        setErrorMessage(data.error ?? "今日生成额度已用完，明天会自动恢复。");
+        return;
+      }
 
       if (!response.ok || !data.plan) {
         setPhase("error");
@@ -332,12 +348,17 @@ export function PlannerForm() {
               className="w-full"
               size="lg"
               onClick={startPlanning}
-              disabled={!dayValid || phase === "running"}
+              disabled={!dayValid || phase === "running" || exhausted}
             >
               {phase === "running" ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
                   生成中…
+                </>
+              ) : exhausted ? (
+                <>
+                  <AlertTriangle size={16} />
+                  今日额度已用完
                 </>
               ) : (
                 <>
@@ -347,7 +368,11 @@ export function PlannerForm() {
               )}
             </Button>
             <p className="text-center text-[11px] text-ink-400">
-              提交后会调用后端接口，由模型生成结构化行程并保存到你的行程库
+              {exhausted
+                ? "额度每天自动重置，明天可以继续生成"
+                : quota.status === "active"
+                  ? `提交后由模型生成并保存到行程库，本次会消耗 1 次额度（今日剩余 ${quota.remaining} 次）`
+                  : "提交后会调用后端接口，由模型生成结构化行程并保存到你的行程库"}
             </p>
           </div>
         </div>
@@ -453,22 +478,41 @@ export function PlannerForm() {
         ) : null}
 
         {phase === "error" ? (
-          <div className="card border-rose-200 p-6">
+          <div className={cn("card p-6", exhausted ? "border-amber-200" : "border-rose-200")}>
             <div className="flex items-start gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+              <span
+                className={cn(
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                  exhausted ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600",
+                )}
+              >
                 <AlertTriangle size={17} />
               </span>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink-900">这次生成没有成功</p>
-                <p className="mt-1.5 text-xs leading-relaxed text-rose-700">{errorMessage}</p>
+                <p className="text-sm font-semibold text-ink-900">
+                  {exhausted ? "今日生成额度已用完" : "这次生成没有成功"}
+                </p>
+                <p
+                  className={cn(
+                    "mt-1.5 text-xs leading-relaxed",
+                    exhausted ? "text-amber-800" : "text-rose-700",
+                  )}
+                >
+                  {errorMessage}
+                </p>
                 <p className="mt-3 text-[11px] leading-relaxed text-ink-400">
-                  如果这条任务已经创建成功，它会出现在「历史计划」里，可以直接重试，不需要重新填表。
+                  {exhausted
+                    ? "这是演示站点为控制模型成本设的上限，额度每天自动重置。你已有的行程不受影响，仍可在「历史计划」里查看、导出和分享。"
+                    : "如果这条任务已经创建成功，它会出现在「历史计划」里，可以直接重试，不需要重新填表。"}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button size="sm" onClick={startPlanning}>
-                    <RefreshCw size={13} />
-                    重试
-                  </Button>
+                  {/* 额度用完时不给「重试」：重试也不会成功，只会让人反复撞墙 */}
+                  {exhausted ? null : (
+                    <Button size="sm" onClick={startPlanning}>
+                      <RefreshCw size={13} />
+                      重试
+                    </Button>
+                  )}
                   <LinkButton href="/app/history" variant="secondary" size="sm">
                     去历史记录看看
                   </LinkButton>

@@ -205,6 +205,57 @@ npm run dev
 
 ---
 
+## 成本防护（生成配额）
+
+每次生成都要真实调用大模型。项目一旦部署到公网，链接可能被爬虫扫到，
+被人批量注册 + 批量调用，烧的全是自己的 API 余额。所以设了两道闸：
+
+| 闸门 | 默认值 | 作用 |
+|---|---|---|
+| **全站每日上限** | 60 次 | 给总成本设一个**硬上限**，兜住所有情况（含恶意刷） |
+| **每用户每日上限** | 5 次 | 提高单个账号的刷取成本，同时做成产品功能（侧边栏显示剩余次数） |
+
+额度**按天重置**（用 `Asia/Shanghai` 时区算「今天」）。管理员账号**不受限制**，方便自己排查问题。
+
+### 怎么调整上限
+
+上限存在数据库的 `app_config` 表里 —— **不在环境变量里**。改完立即生效，
+不用改代码也不用重新部署：
+
+```sql
+-- 全站每天最多 100 次
+update public.app_config set value = '100' where key = 'planner_daily_global_limit';
+
+-- 每个用户每天最多 10 次
+update public.app_config set value = '10'  where key = 'planner_daily_user_limit';
+
+-- 查看当前配置
+select * from public.app_config;
+```
+
+### 为什么上限必须放在数据库里
+
+这不是随手一放。如果把上限做成环境变量、再当作参数传给数据库函数，
+那么**任何登录用户都能用 anon key 直接调 RPC 并传 `limit=999999` 把限制绕过去**。
+上限必须由服务端自己持有，调用方无法干预。
+
+同理，函数内部用 `auth.uid()` 取当前用户，而不是接受 `user_id` 参数 ——
+否则用户可以伪造别人的 id 去消耗他人额度。
+
+### 为什么「检查 + 占用」写成一个数据库函数
+
+先 `select count` 再 `insert` 会有竞态：两个并发请求同时看到「还没超」于是都放行。
+而 `insert ... on conflict do update` 会持有行锁，天然串行化，超限的那一个会自己回退掉。
+
+### 两个有意为之的取舍
+
+- **额度不退还**：模型调用失败时 API 成本其实已经产生了；而且「失败可退还」会给刷额度留口子。
+- **配额表不可用时放行（fail-open）**：如果还没执行最新的 `schema.sql`，或 Supabase 临时抖动，
+  生成功能仍然可用，不会整站瘫掉。代价是侧边栏会明确显示「额度信息暂不可用」，
+  不会假装额度充足。
+
+---
+
 ## 接口清单
 
 所有接口都在 `src/app/api/` 下。每个接口第一件事都是鉴权，未登录返回 401。
@@ -213,10 +264,10 @@ npm run dev
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| `POST` | `/api/trips/plan` | 创建计划并生成行程。成功 201，生成失败 502（带 `planId` 可重试） |
+| `POST` | `/api/trips/plan` | 创建计划并生成行程。成功 201，生成失败 502（带 `planId` 可重试），额度用完 **429** |
 | `GET` | `/api/trips/:id` | 行程详情（含每日安排） |
-| `POST` | `/api/trips/:id/regenerate` | 按原条件重新生成 |
-| `PATCH` | `/api/trips/:id/preferences` | 改条件后重算，只传要改的字段 |
+| `POST` | `/api/trips/:id/regenerate` | 按原条件重新生成。额度用完 429 |
+| `PATCH` | `/api/trips/:id/preferences` | 改条件后重算，只传要改的字段。额度用完 429 |
 | `GET` | `/api/trips/:id/export?format=markdown\|txt` | 下载文件（附件流） |
 | `POST` | `/api/trips/:id/export` | 只登记一条导出记录（打印页用） |
 | `POST` | `/api/trips/:id/share` | 开启分享，返回 `/share/<token>` |
@@ -364,6 +415,30 @@ update public.profiles set role = 'admin' where email = '你的邮箱';
 
 如果提示没有这条记录，先用该邮箱在网站注册一次（注册时会自动建档）。
 
+### 侧边栏显示「额度信息暂不可用」
+
+说明数据库里还没有配额表 —— `supabase/schema.sql` 只执行了旧版本。
+去 SQL Editor 把整个文件重跑一遍即可（幂等）。
+
+这期间生成功能**仍然可用**（有意设计的 fail-open），但成本防护是失效的，
+公网部署前务必补上。
+
+### 提示「今日生成额度已用完」
+
+成本防护生效了。默认每个用户每天 5 次、全站每天 60 次，按天自动重置。
+
+调整上限：
+
+```sql
+update public.app_config set value = '10' where key = 'planner_daily_user_limit';
+```
+
+管理员账号不受限制。想立刻恢复测试，可以清掉今天的计数：
+
+```sql
+delete from public.planner_quota where day = (now() at time zone 'Asia/Shanghai')::date;
+```
+
 ### 生成报「模型服务返回 401」
 
 `LLM_API_KEY` 不正确或已失效。检查 `.env.local`（本地）或部署平台环境变量（线上），
@@ -397,3 +472,5 @@ npm run dev
 - 反馈目前只支持管理员改状态，**没有**回复用户的通道
 - 后台的行程排查是**只读**的，不提供代用户重试（避免把 `planner_runs.user_id` 记成管理员）
 - 官网首页的 Demo 行程是**静态示例数据**（`src/lib/mock-data.ts`），不是真实生成结果
+- 成本防护是**按天**的额度上限，不是总预算；且**生成失败也会扣掉 1 次额度**
+- 额度上限目前只能改数据库（`app_config` 表），后台管理台里**没有**对应的配置界面

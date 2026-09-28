@@ -1,16 +1,22 @@
 import type { Metadata } from "next";
 import { ShieldAlert } from "lucide-react";
+import { requireUser } from "@/lib/auth/session";
+import { readQuotaState } from "@/lib/trips/quota";
 import { PlannerForm } from "@/components/planner-form";
 
 export const metadata: Metadata = { title: "规划页" };
 
-export default function PlannerPage({
+export default async function PlannerPage({
   searchParams,
 }: {
   searchParams: { notice?: string };
 }) {
   // 普通用户访问 /admin/* 会被打回这里，并带上 notice=admin-only
   const adminOnlyNotice = searchParams.notice === "admin-only";
+
+  // 额度用完时要提前把按钮禁掉，所以这里先把状态读出来传给表单
+  const user = await requireUser("/app/planner");
+  const quota = await readQuotaState(user.role);
 
   return (
     <div className="mx-auto max-w-[1400px]">
@@ -28,7 +34,7 @@ export default function PlannerPage({
         </div>
       ) : null}
 
-      <PlannerForm />
+      <PlannerForm quota={quota} />
     </div>
   );
 }

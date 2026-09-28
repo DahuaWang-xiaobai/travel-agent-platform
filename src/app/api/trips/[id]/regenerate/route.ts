@@ -10,7 +10,7 @@ import { regeneratePlan } from "@/lib/trips/service";
  * 重新跑一遍模型，然后覆盖旧的每日安排。
  *
  * 成功：200 { plan: {...} }
- * 失败：401 未登录 / 404 找不到行程 / 502 生成失败
+ * 失败：401 未登录 / 404 找不到行程 / 429 今日额度用完 / 502 生成失败
  */
 
 export const dynamic = "force-dynamic";
@@ -24,13 +24,11 @@ export async function POST(_request: Request, { params }: { params: { id: string
     return NextResponse.json({ error: "请先登录。" }, { status: 401 });
   }
 
-  const result = await regeneratePlan(user.id, params.id);
+  const result = await regeneratePlan(user, params.id);
 
   if (!result.ok) {
-    return NextResponse.json(
-      { error: result.error, planId: result.planId },
-      { status: result.notFound ? 404 : 502 },
-    );
+    const status = result.notFound ? 404 : result.quotaExceeded ? 429 : 502;
+    return NextResponse.json({ error: result.error, planId: result.planId }, { status });
   }
 
   return NextResponse.json({ plan: result.plan });

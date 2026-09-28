@@ -16,7 +16,7 @@ import { createAndGeneratePlan } from "@/lib/trips/service";
  * }
  *
  * 成功：201 { plan: {...} }
- * 失败：400 入参有问题 / 401 未登录 / 502 模型或写库失败（会带 planId，可拿去重试）
+ * 失败：400 入参有问题 / 401 未登录 / 429 今日额度用完 / 502 模型或写库失败（会带 planId，可拿去重试）
  */
 
 export const dynamic = "force-dynamic";
@@ -51,13 +51,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  // 4) 生成 + 落库
-  const result = await createAndGeneratePlan(user.id, parsed.value);
+  // 4) 额度校验 + 生成 + 落库（额度在 service 层扣，见 lib/trips/quota.ts）
+  const result = await createAndGeneratePlan(user, parsed.value);
 
   if (!result.ok) {
     return NextResponse.json(
       { error: result.error, planId: result.planId },
-      { status: 502 },
+      { status: result.quotaExceeded ? 429 : 502 },
     );
   }
 

@@ -565,11 +565,179 @@ $$;
 
 
 -- ---------------------------------------------------------------------------
--- 13. 完成
---    想确认建好了：左侧 Table Editor 里应该能看到这 8 张表
---      profiles / trip_plans / itinerary_days / itinerary_items /
---      planner_runs / trip_plan_versions / trip_feedback / trip_exports
+-- 13. 生成配额：成本防护
 --
---    以及 Database -> Functions 里能看到 2 个函数：
---      get_shared_trip / admin_metrics
+--     为什么要有这一段：
+--       项目部署到公网后，链接可能被爬虫扫到，被人批量注册 + 批量调用大模型，
+--       烧的全是自己的 API 余额。所以设两道闸：
+--         · 全站每日上限   -> 给总成本设一个硬上限，兜住所有情况（含恶意刷）
+--         · 每用户每日上限 -> 提高单个账号的刷取成本，同时做成产品功能
+--
+--     为什么按「天」存而不是累计总量：
+--       演示站点让访客每天都有额度可用，体验更好；总成本由全站每日上限兜住。
+-- ---------------------------------------------------------------------------
+create table if not exists public.planner_quota (
+  day        date        not null,
+  scope      text        not null check (scope in ('global', 'user')),
+  -- scope='global' 时固定为 'all'；scope='user' 时是用户 id
+  scope_key  text        not null,
+  used       integer     not null default 0 check (used >= 0),
+  updated_at timestamptz not null default now(),
+  primary key (day, scope, scope_key)
+);
+
+alter table public.planner_quota enable row level security;
+
+-- 用户只能读自己那一行（前端用它显示「剩余 N 次生成」）。
+-- 全站用量属于运营信息，不对普通用户暴露。
+drop policy if exists "planner_quota_select_own" on public.planner_quota;
+create policy "planner_quota_select_own" on public.planner_quota
+  for select using (scope_key = auth.uid()::text);
+
+-- 注意：故意不建 insert / update / delete 策略。
+-- 写入只能通过下面的 security definer 函数完成，
+-- 这样用户没法自己把 used 改回 0 来绕过限制。
+
+
+-- 配额上限配置。
+--
+-- ⚠️ 为什么不放环境变量：函数签名一旦接受 limit 参数，任何登录用户都能用 anon key
+--    直接调 RPC 并传 limit=999999 把限制绕过去。所以上限必须由服务端自己持有。
+--
+-- 想调整就执行（改完立即生效，不用改代码也不用重新部署）：
+--   update public.app_config set value = '100' where key = 'planner_daily_global_limit';
+create table if not exists public.app_config (
+  key   text primary key,
+  value text not null
+);
+
+alter table public.app_config enable row level security;
+-- 配置表不开放给任何客户端读取（普通用户连 select 都不给）
+
+insert into public.app_config (key, value) values
+  ('planner_daily_user_limit',   '5'),
+  ('planner_daily_global_limit', '60')
+on conflict (key) do nothing;
+
+
+-- 消耗一次配额（检查 + 占用一体，原子操作）。
+--
+-- 为什么必须写成一个数据库函数：
+--   如果先 select count 再 insert，两个并发请求会同时看到「还没超」于是都放行，
+--   这就是竞态。而 UPSERT ... ON CONFLICT DO UPDATE 会持有行锁，天然串行化，
+--   超限的那一个会被自己回退掉。
+--
+-- 为什么用 auth.uid() 而不是传参：
+--   传参的话用户可以伪造别人的 user_id 去消耗他人额度。auth.uid() 从会话 JWT 里取，
+--   伪造不了。
+--
+-- 返回值：allowed 是否放行；reason 为 'user' / 'global' 表示触发了哪道闸。
+create or replace function public.consume_planner_quota()
+returns table (
+  allowed     boolean,
+  reason      text,
+  user_used   integer,
+  user_limit  integer,
+  global_used integer
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  -- 用上海时区算「今天」。按 UTC 算的话会在早上 8 点重置，和用户直觉不符
+  v_today      date := (now() at time zone 'Asia/Shanghai')::date;
+  v_user_id    uuid := auth.uid();
+  v_user_limit integer;
+  v_glob_limit integer;
+  v_user       integer;
+  v_glob       integer;
+begin
+  if v_user_id is null then
+    return query select false, 'unauthenticated'::text, 0, 0, 0;
+    return;
+  end if;
+
+  select coalesce(max(value::int), 5) into v_user_limit
+    from public.app_config where key = 'planner_daily_user_limit';
+  select coalesce(max(value::int), 60) into v_glob_limit
+    from public.app_config where key = 'planner_daily_global_limit';
+
+  -- 1) 先占全站额度
+  insert into public.planner_quota (day, scope, scope_key, used)
+  values (v_today, 'global', 'all', 1)
+  on conflict (day, scope, scope_key) do update
+    set used = public.planner_quota.used + 1, updated_at = now()
+  returning used into v_glob;
+
+  if v_glob > v_glob_limit then
+    update public.planner_quota
+      set used = used - 1, updated_at = now()
+      where day = v_today and scope = 'global' and scope_key = 'all';
+    return query select false, 'global'::text, 0, v_user_limit, v_glob;
+    return;
+  end if;
+
+  -- 2) 再占用户额度
+  insert into public.planner_quota (day, scope, scope_key, used)
+  values (v_today, 'user', v_user_id::text, 1)
+  on conflict (day, scope, scope_key) do update
+    set used = public.planner_quota.used + 1, updated_at = now()
+  returning used into v_user;
+
+  if v_user > v_user_limit then
+    -- 用户额度超了，两次占用都要退掉，否则会平白吃掉全站额度
+    update public.planner_quota
+      set used = used - 1, updated_at = now()
+      where day = v_today and scope = 'global' and scope_key = 'all';
+    update public.planner_quota
+      set used = used - 1, updated_at = now()
+      where day = v_today and scope = 'user' and scope_key = v_user_id::text;
+    return query select false, 'user'::text, v_user, v_user_limit, v_glob - 1;
+    return;
+  end if;
+
+  return query select true, null::text, v_user, v_user_limit, v_glob;
+end;
+$$;
+
+
+-- 只读查询当前用户今天用了多少（页面渲染「剩余 N 次生成」用），不占用额度。
+create or replace function public.read_planner_quota()
+returns table (user_used integer, user_limit integer)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_today      date := (now() at time zone 'Asia/Shanghai')::date;
+  v_user_id    uuid := auth.uid();
+  v_user_limit integer;
+begin
+  if v_user_id is null then
+    return query select 0, 0;
+    return;
+  end if;
+
+  select coalesce(max(value::int), 5) into v_user_limit
+    from public.app_config where key = 'planner_daily_user_limit';
+
+  return query
+    select
+      coalesce((select q.used from public.planner_quota q
+                 where q.day = v_today and q.scope = 'user' and q.scope_key = v_user_id::text), 0),
+      v_user_limit;
+end;
+$$;
+
+
+-- ---------------------------------------------------------------------------
+-- 14. 完成
+--    想确认建好了：左侧 Table Editor 里应该能看到这 10 张表
+--      profiles / trip_plans / itinerary_days / itinerary_items /
+--      planner_runs / trip_plan_versions / trip_feedback / trip_exports /
+--      planner_quota / app_config
+--
+--    以及 Database -> Functions 里能看到 4 个函数：
+--      get_shared_trip / admin_metrics / consume_planner_quota / read_planner_quota
 -- ---------------------------------------------------------------------------

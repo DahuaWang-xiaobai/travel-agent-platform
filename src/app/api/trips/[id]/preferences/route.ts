@@ -13,7 +13,7 @@ import { parsePlannerPatch } from "@/lib/trips/validation";
  *
  * 成功：200 { plan: {...}, provider: "deepseek" }
  * 失败：400 入参不合法（含天数不在 3-7 天等语义错误）
- *       401 未登录 / 404 行程不存在 / 502 模型或写库失败
+ *       401 未登录 / 404 行程不存在 / 429 今日额度用完 / 502 模型或写库失败
  */
 
 export const dynamic = "force-dynamic";
@@ -39,11 +39,17 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const result = await updatePlanConditions(user.id, params.id, parsed.value);
+  const result = await updatePlanConditions(user, params.id, parsed.value);
 
   if (!result.ok) {
-    // 合并后的条件不合法（比如天数变成 8 天）也算 400
-    const status = result.notFound ? 404 : result.planId ? 502 : 400;
+    // 合并后的条件不合法（比如天数变成 8 天）也算 400；额度用完是 429
+    const status = result.notFound
+      ? 404
+      : result.quotaExceeded
+        ? 429
+        : result.planId
+          ? 502
+          : 400;
     return NextResponse.json({ error: result.error, planId: result.planId }, { status });
   }
 

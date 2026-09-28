@@ -239,6 +239,26 @@ export interface ApiErrorBody {
 /** 这一版是怎么产生的 */
 export type VersionSource = "create" | "regenerate" | "preference_patch";
 
+/* ------------------------------------------------------------------ */
+/* 生成配额（成本防护）                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 今日生成额度状态。
+ *
+ * status 的三种取值：
+ *   active      —— 正常计量，界面显示「剩余 N 次生成」
+ *   unlimited   —— 管理员账号，不消耗额度
+ *   unavailable —— 数据库还没建配额表（未执行最新 schema.sql）或查询失败，
+ *                  此时不拦截生成，但界面必须明确提示，不能假装一切正常
+ */
+export interface QuotaState {
+  used: number;
+  limit: number;
+  remaining: number;
+  status: "active" | "unlimited" | "unavailable";
+}
+
 /** 历史版本摘要（列表用，不含完整快照，避免一次拖回大量 JSON） */
 export interface TripPlanVersionSummary {
   id: string;

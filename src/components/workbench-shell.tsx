@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import type { SessionUser } from "@/lib/types";
+import type { QuotaState, SessionUser } from "@/lib/types";
 import { Badge, Logo, buttonClass } from "@/components/ui";
 import { LogoutButton } from "@/components/auth/logout-button";
 
@@ -26,15 +26,21 @@ const navItems = [
 export function WorkbenchShell({
   children,
   user,
+  quota,
 }: {
   children: ReactNode;
   user: SessionUser;
+  quota: QuotaState;
 }) {
   const pathname = usePathname();
   const active = navItems.find((item) => pathname?.startsWith(item.href)) ?? navItems[0];
 
   // 昵称首字母 / 邮箱首字母，用作头像占位
   const avatarText = (user.nickname || user.email || "U").slice(0, 1).toUpperCase();
+
+  // 额度进度条展示「已用掉多少」，用满时变红
+  const usedPercent = quota.limit > 0 ? Math.round((quota.used / quota.limit) * 100) : 0;
+  const runningLow = quota.status === "active" && quota.remaining <= 1;
 
   return (
     <div className="min-h-screen bg-ink-50 lg:flex">
@@ -94,14 +100,46 @@ export function WorkbenchShell({
         </div>
 
         <div className="space-y-3">
+          {/* 今日生成额度：真实数据来自 planner_quota 表（成本防护），不再是写死的文案 */}
           <div className="rounded-xl border border-white/10 bg-white/5 p-3">
             <p className="text-[11px] font-medium uppercase tracking-wide text-white/40">
-              当前套餐
+              今日生成额度
             </p>
-            <p className="mt-1 text-sm font-semibold text-white">Free · 剩余 3 次生成</p>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-              <div className="h-full w-2/5 rounded-full bg-brand-sheen" />
-            </div>
+
+            {quota.status === "unlimited" ? (
+              <p className="mt-1 text-sm font-semibold text-white">管理员 · 不限次数</p>
+            ) : quota.status === "unavailable" ? (
+              <>
+                <p className="mt-1 text-sm font-semibold text-amber-200">额度信息暂不可用</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-white/35">
+                  配额表还没建，生成功能仍可用。请执行最新的 supabase/schema.sql。
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="mt-1 text-sm font-semibold text-white">
+                  剩余 {quota.remaining} / {quota.limit} 次
+                </p>
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all",
+                      quota.remaining === 0
+                        ? "bg-rose-400"
+                        : runningLow
+                          ? "bg-amber-300"
+                          : "bg-brand-sheen",
+                    )}
+                    style={{ width: `${usedPercent}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-[11px] leading-relaxed text-white/35">
+                  {quota.remaining === 0
+                    ? "今日额度已用完，明天自动恢复"
+                    : "额度按天重置，用于控制演示站点的模型成本"}
+                </p>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-3 rounded-xl px-3 py-2">

@@ -1,6 +1,7 @@
 import { providerLabel, runPlanner } from "@/lib/planner/provider";
 import type { PlannerInput, TripPlan, VersionSource } from "@/lib/types";
 import { inputFromPlan } from "./mapper";
+import { consumeQuota, type QuotaActor } from "./quota";
 import {
   findPlanById,
   findPlanVersionSnapshot,
@@ -19,11 +20,12 @@ import { daysBetween, parsePlannerInput } from "./validation";
  * 业务编排层：把「调模型」和「写数据库」串成一条完整流程。
  *
  * 完整链路：
- *   1. 先插一条 status=generating 的行程记录（拿到 planId）
- *   2. 调用模型生成结构化行程
- *   3. 写 itinerary_days + itinerary_items
- *   4. 把概括字段写回 trip_plans，状态改为 saved
- *   5. 往 planner_runs 记一条日志（成功或失败都记）
+ *   1. 校验今日生成额度（成本防护，见 quota.ts）
+ *   2. 先插一条 status=generating 的行程记录（拿到 planId）
+ *   3. 调用模型生成结构化行程
+ *   4. 写 itinerary_days + itinerary_items
+ *   5. 把概括字段写回 trip_plans，状态改为 saved
+ *   6. 往 planner_runs 记一条日志（成功或失败都记）
  *
  * 任何一步失败都会把行程标记为 failed 并保留错误原因，
  * 这样用户在历史记录里能看到这条失败任务，并且可以点「重试」。
@@ -37,19 +39,37 @@ export type GenerateOutcome =
       planId?: string;
       /** 行程不存在或不属于当前用户，路由据此返回 404 而不是 502 */
       notFound?: boolean;
+      /** 今日额度用完，路由据此返回 429 而不是 502 */
+      quotaExceeded?: boolean;
     };
 
 const NOT_FOUND = "找不到这份行程，可能已经被删除了。";
 
+/**
+ * 生成前的额度校验。
+ *
+ * 放在「创建 / 修改行程记录之前」调用，这样额度用完时不会在库里留下垃圾记录。
+ * 顺带说明：额度一旦占用就不退还 —— 模型调用失败时 API 成本其实已经产生了，
+ * 而且「失败可退还」会给刷额度留口子。管理员不受此限制。
+ */
+async function guardQuota(actor: QuotaActor): Promise<GenerateOutcome | null> {
+  const quota = await consumeQuota(actor.role);
+  if (quota.ok) return null;
+  return { ok: false, error: quota.error, quotaExceeded: true };
+}
+
 /** 创建计划并立即生成行程 */
 export async function createAndGeneratePlan(
-  userId: string,
+  actor: QuotaActor,
   input: PlannerInput,
 ): Promise<GenerateOutcome> {
+  const blocked = await guardQuota(actor);
+  if (blocked) return blocked;
+
   const days = daysBetween(input.startDate, input.endDate);
 
   const created = await insertPlanRecord(
-    userId,
+    actor.id,
     input,
     `${input.origin} → ${input.destination} · ${days} 天`,
     days,
@@ -57,18 +77,21 @@ export async function createAndGeneratePlan(
 
   if (!created.ok) return { ok: false, error: created.error };
 
-  return generateIntoPlan(userId, created.data, input, "create");
+  return generateIntoPlan(actor.id, created.data, input, "create");
 }
 
 /** 按已保存的条件重新生成（不需要用户重新填表） */
-export async function regeneratePlan(userId: string, planId: string): Promise<GenerateOutcome> {
-  const existing = await findPlanById(userId, planId);
+export async function regeneratePlan(actor: QuotaActor, planId: string): Promise<GenerateOutcome> {
+  const existing = await findPlanById(actor.id, planId);
   if (!existing.ok) return { ok: false, error: existing.error };
   if (!existing.data) return { ok: false, error: NOT_FOUND, notFound: true };
 
+  const blocked = await guardQuota(actor);
+  if (blocked) return blocked;
+
   await markPlanGenerating(planId);
 
-  return generateIntoPlan(userId, planId, inputFromPlan(existing.data), "regenerate");
+  return generateIntoPlan(actor.id, planId, inputFromPlan(existing.data), "regenerate");
 }
 
 /**
@@ -78,11 +101,11 @@ export async function regeneratePlan(userId: string, planId: string): Promise<Ge
  * 只传要改的字段即可，没传的沿用数据库里的原值。
  */
 export async function updatePlanConditions(
-  userId: string,
+  actor: QuotaActor,
   planId: string,
   patch: Partial<PlannerInput>,
 ): Promise<GenerateOutcome> {
-  const existing = await findPlanById(userId, planId);
+  const existing = await findPlanById(actor.id, planId);
   if (!existing.ok) return { ok: false, error: existing.error };
   if (!existing.data) return { ok: false, error: NOT_FOUND, notFound: true };
 
@@ -101,6 +124,10 @@ export async function updatePlanConditions(
 
   if (!merged.ok) return { ok: false, error: merged.error };
 
+  // 额度检查放在写入修改之前：入参已经校验过，避免白扣一次额度
+  const blocked = await guardQuota(actor);
+  if (blocked) return blocked;
+
   const days = daysBetween(merged.value.startDate, merged.value.endDate);
 
   const updated = await updatePlanInput(planId, merged.value, days);
@@ -108,7 +135,7 @@ export async function updatePlanConditions(
 
   await markPlanGenerating(planId);
 
-  return generateIntoPlan(userId, planId, merged.value, "preference_patch");
+  return generateIntoPlan(actor.id, planId, merged.value, "preference_patch");
 }
 
 /**
