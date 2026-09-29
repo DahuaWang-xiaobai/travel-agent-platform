@@ -1,4 +1,3 @@
-import { coverImageFor } from "@/lib/cover";
 import type { GeneratedItinerary } from "@/lib/planner/schema";
 import type {
   BudgetBreakdown,
@@ -113,7 +112,6 @@ export function toTripPlanSummary(row: TripPlanRow): TripPlanSummary {
     status: row.status as PlanStatus,
     createdAt: formatDateTime(row.created_at),
     updatedAt: formatDateTime(row.updated_at ?? row.created_at),
-    coverImage: coverImageFor(row.destination),
     summary: row.summary ?? "",
     errorMessage: row.error_message,
   };
@@ -162,7 +160,6 @@ export function toTripPlan(row: TripPlanRow): TripPlan {
     pace: row.pace as Pace,
     status: row.status as PlanStatus,
     createdAt: formatDateTime(row.created_at),
-    coverImage: coverImageFor(row.destination),
     summary: row.summary ?? "",
     errorMessage: row.error_message,
     highlights: strArray(row.highlights),

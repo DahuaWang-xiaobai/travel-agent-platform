@@ -18,6 +18,7 @@ import {
   type Tone,
 } from "@/lib/utils";
 import { Badge, ProgressBar, buttonClass } from "@/components/ui";
+import { CoverImage } from "@/components/cover-image";
 
 /* ------------------------------------------------------------------ */
 /* 行程相关展示组件：Day by Day 卡片 / 预算拆分卡片 / 行程卡片 / 行程预览  */
@@ -169,12 +170,9 @@ export function TripCard({
     <div className="card card-hover flex flex-col overflow-hidden">
       {showCover ? (
         <div className="relative h-40 w-full overflow-hidden bg-ink-100">
-          {/* 站点配图由文生图服务生成，仅用于演示 */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={trip.coverImage}
-            alt={`${trip.destination} 行程配图`}
-            className="h-full w-full object-cover transition duration-500 hover:scale-105"
+          <CoverImage
+            destination={trip.destination}
+            className="transition duration-500 hover:scale-105"
           />
           <div className="absolute left-3 top-3">
             <Badge tone={status.tone} className="bg-white/90 backdrop-blur">
@@ -246,12 +244,7 @@ export function TripPreview({ trip }: { trip: TripPlan }) {
     <div className="space-y-4">
       <div className="card overflow-hidden">
         <div className="relative h-36 w-full overflow-hidden bg-ink-100">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={trip.coverImage}
-            alt={`${trip.destination} 行程配图`}
-            className="h-full w-full object-cover"
-          />
+          <CoverImage destination={trip.destination} />
           <div className="absolute inset-0 bg-gradient-to-t from-ink-950/70 to-transparent" />
           <div className="absolute bottom-4 left-4 right-4">
             <Badge tone="brand" className="bg-white/90 backdrop-blur">

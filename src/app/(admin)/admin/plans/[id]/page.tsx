@@ -15,6 +15,7 @@ import { findPlanAsAdmin } from "@/lib/trips/repository";
 import { formatCNY, formatDateCN, paceMeta, planStatusMeta } from "@/lib/utils";
 import { Badge, EmptyState, LinkButton } from "@/components/ui";
 import { BudgetCard, DayCard } from "@/components/trip-view";
+import { CoverImage } from "@/components/cover-image";
 
 export const metadata: Metadata = { title: "行程排查" };
 
@@ -90,12 +91,7 @@ export default async function AdminPlanDetailPage({ params }: { params: { id: st
 
       <section className="card overflow-hidden">
         <div className="relative h-48 w-full bg-ink-100 sm:h-56">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={trip.coverImage}
-            alt={`${trip.destination} 行程配图`}
-            className="h-full w-full object-cover"
-          />
+          <CoverImage destination={trip.destination} />
           <div className="absolute inset-0 bg-gradient-to-t from-ink-950/85 via-ink-950/30 to-transparent" />
           <div className="absolute bottom-5 left-5 right-5">
             <p className="flex items-center gap-1.5 text-xs text-white/70">

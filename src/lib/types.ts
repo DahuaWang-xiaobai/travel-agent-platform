@@ -60,7 +60,6 @@ export interface TripPlan {
   pace: Pace;
   status: PlanStatus;
   createdAt: string;
-  coverImage: string;
   summary: string;
   errorMessage: string | null;
   highlights: string[];
@@ -198,7 +197,6 @@ export interface TripPlanSummary {
   createdAt: string;
   /** 最后更新时间：重新生成 / 状态变化时会变，列表页显示「更新于」用 */
   updatedAt: string;
-  coverImage: string;
   summary: string;
   errorMessage: string | null;
 }
@@ -221,7 +219,6 @@ export type TripCardData = Pick<
   | "preferences"
   | "pace"
   | "status"
-  | "coverImage"
   | "summary"
 >;
 

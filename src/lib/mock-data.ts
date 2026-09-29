@@ -9,13 +9,6 @@ import type { ItineraryDay, TripPlan } from "./types";
  * trip_feedback / trip_exports 表里。
  */
 
-/** 站点配图统一走内部文生图服务 */
-function cover(prompt: string, size: "landscape_4_3" | "portrait_4_3" | "square" = "landscape_4_3") {
-  return `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=${encodeURIComponent(
-    prompt,
-  )}&image_size=${size}`;
-}
-
 /* ------------------------------------------------------------------ */
 /* 官网首页：产品价值 / 使用场景 / 能力清单                              */
 /* ------------------------------------------------------------------ */
@@ -615,9 +608,6 @@ export const trips: TripPlan[] = [
     status: "saved",
     createdAt: "2026-04-12 10:24",
     errorMessage: null,
-    coverImage: cover(
-      "Chengdu China travel photography traditional teahouse in Peoples Park with bamboo chairs and warm afternoon sunlight cinematic realistic",
-    ),
     summary:
       "以「吃」为主线串起市区经典点位，熊猫基地安排在第二天早上，整体步行量与换乘都控制在中等强度。",
     highlights: [
@@ -648,9 +638,6 @@ export const trips: TripPlan[] = [
     status: "exported",
     createdAt: "2026-03-18 21:05",
     errorMessage: null,
-    coverImage: cover(
-      "Kyoto Japan travel photography Arashiyama bamboo grove path early morning soft light realistic cinematic",
-    ),
     summary:
       "按东西两条主线拆分 5 天，避免同一天跨城往返；每天保留 2 小时自由时间，适合喜欢慢慢逛的旅行者。",
     highlights: [
@@ -680,9 +667,6 @@ export const trips: TripPlan[] = [
     status: "saved",
     createdAt: "2026-05-28 09:41",
     errorMessage: null,
-    coverImage: cover(
-      "Xiamen Gulangyu island coastal view with colonial architecture and blue sea warm sunlight realistic travel photography",
-    ),
     summary:
       "紧凑但不过量的 3 天线路，鼓浪屿单独占一整天，其余时间留在本岛解决吃喝与海景。",
     highlights: [
@@ -712,9 +696,6 @@ export const trips: TripPlan[] = [
     status: "generating",
     createdAt: "2026-06-24 15:12",
     errorMessage: null,
-    coverImage: cover(
-      "Dali Yunnan Erhai lake landscape with mountains and small village morning mist realistic travel photography",
-    ),
     summary: "Agent 正在串联环洱海的租车点、住宿与观景平台，预计 20 秒内完成。",
     highlights: [],
     notices: [],
@@ -735,9 +716,6 @@ export const trips: TripPlan[] = [
     status: "failed",
     createdAt: "2026-01-02 20:33",
     errorMessage: "weather_source_timeout：外部天气信息源 30s 未响应",
-    coverImage: cover(
-      "Harbin ice festival sculpture at night with colorful lighting and snow realistic winter travel photography",
-    ),
     summary: "生成失败：外部天气信息源超时，未能确认冰雪大世界当期开放时段。",
     highlights: [],
     notices: [],
