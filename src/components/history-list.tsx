@@ -153,10 +153,7 @@ export function HistoryList({ plans }: { plans: TripPlanSummary[] }) {
       )}
 
       <p className="flex flex-wrap items-center gap-2 text-[11px] text-ink-400">
-        共 {visible.length} 份行程 ·
-        <Link href="/app/exports" className="text-brand-600 hover:text-brand-700">
-          前往导出与反馈
-        </Link>
+        共 {visible.length} 份行程
         <Badge tone="success">数据来自数据库，按账号隔离</Badge>
       </p>
     </div>

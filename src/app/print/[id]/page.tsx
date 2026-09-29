@@ -71,7 +71,7 @@ export default async function PrintTripPage({ params }: { params: { id: string }
         <header className="border-b border-ink-200 pb-5">
           <p className="flex items-center gap-1.5 text-[11px] text-ink-400">
             <Sparkles size={11} />
-            Wayfarer Agent 生成 · 出行前请再次核实开放时间与价格
+            Wayfarer 生成 · 出行前请再次核实开放时间与价格
           </p>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink-900">
             {trip.title}
@@ -205,7 +205,7 @@ export default async function PrintTripPage({ params }: { params: { id: string }
         ) : null}
 
         <footer className="mt-10 border-t border-ink-200 pt-4 text-[10px] text-ink-400">
-          <p>由 Wayfarer Agent 生成 · {trip.createdAt}</p>
+          <p>由 Wayfarer 生成 · {trip.createdAt}</p>
           <p className="mt-1">
             行程中的时间、价格均为模型估算，实际以官方渠道为准。
           </p>

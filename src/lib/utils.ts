@@ -1,10 +1,4 @@
-import type {
-  ExportFormat,
-  FeedbackStatus,
-  Pace,
-  PlanStatus,
-  RunStatus,
-} from "./types";
+import type { FeedbackStatus, Pace, PlanStatus, RunStatus } from "./types";
 
 /** 拼接 className，过滤空值 */
 export function cn(...classes: Array<string | false | null | undefined>) {
@@ -94,13 +88,5 @@ export const FEEDBACK_TAGS = [
 ] as const;
 
 export type FeedbackTag = (typeof FEEDBACK_TAGS)[number];
-
-/** 导出 / 分享记录的格式标签 */
-export const exportFormatMeta: Record<ExportFormat, { label: string; tone: Tone }> = {
-  markdown: { label: "Markdown", tone: "brand" },
-  txt: { label: "纯文本", tone: "info" },
-  print: { label: "打印 / PDF", tone: "neutral" },
-  link: { label: "分享链接", tone: "success" },
-};
 
 export type { Tone };

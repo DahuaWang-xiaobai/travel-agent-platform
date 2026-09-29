@@ -21,9 +21,9 @@ export default async function PlannerPage({
   return (
     <div className="mx-auto max-w-[1400px]">
       <header className="mb-6">
-        <h1 className="text-xl font-semibold tracking-tight text-ink-900">规划新行程</h1>
-        <p className="mt-1.5 text-sm text-ink-500">
-          左侧填写旅行需求，右侧实时预览 Agent 生成的每日行程。提交后会调用模型生成并保存到数据库。
+        <h1 className="text-lg font-semibold tracking-tight text-ink-900">新建行程</h1>
+        <p className="mt-1 text-xs text-ink-400">
+          填好条件后点「发起规划任务」，右侧会实时显示进度和结果。
         </p>
       </header>
 

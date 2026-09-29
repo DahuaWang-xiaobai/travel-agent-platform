@@ -60,6 +60,8 @@ export interface TripPlan {
   pace: Pace;
   status: PlanStatus;
   createdAt: string;
+  /** 当前展示的是第几版（对应 trip_plans.current_version），回滚后会跟着变 */
+  currentVersion: number;
   summary: string;
   errorMessage: string | null;
   highlights: string[];

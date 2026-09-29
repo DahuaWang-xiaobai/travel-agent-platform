@@ -72,11 +72,22 @@ const config: Config = {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
+        // 右侧抽屉：面板从右滑入，遮罩淡入
+        slideInRight: {
+          "0%": { transform: "translateX(100%)" },
+          "100%": { transform: "translateX(0)" },
+        },
+        fadeIn: {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
       },
       animation: {
         float: "float 6s ease-in-out infinite",
         "pulse-ring": "pulseRing 2.4s cubic-bezier(0.4,0,0.6,1) infinite",
         shimmer: "shimmer 2.2s linear infinite",
+        "slide-in-right": "slideInRight 0.25s ease-out",
+        "fade-in": "fadeIn 0.2s ease-out",
       },
     },
   },

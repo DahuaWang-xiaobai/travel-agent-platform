@@ -241,7 +241,7 @@ export function Logo({
             variant === "dark" ? "text-white" : "text-ink-900",
           )}
         >
-          Wayfarer Agent
+          Wayfarer
         </span>
         {subtitle ? (
           <span

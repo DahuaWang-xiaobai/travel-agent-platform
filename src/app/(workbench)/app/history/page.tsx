@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import { AlertTriangle, Download, History as HistoryIcon, Plus } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import { listPlanSummaries } from "@/lib/trips/repository";
 import { formatCNY } from "@/lib/utils";
-import { LinkButton } from "@/components/ui";
 import { HistoryList } from "@/components/history-list";
 
-export const metadata: Metadata = { title: "历史计划" };
+export const metadata: Metadata = { title: "我的行程库" };
 
 /**
  * 历史记录页（Server Component）。
@@ -35,26 +34,11 @@ export default async function HistoryPage() {
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-ink-900">
-            <HistoryIcon size={19} className="text-brand-600" />
-            我的行程库
-          </h1>
-          <p className="mt-1.5 text-sm text-ink-500">
-            所有生成过的计划都在这里，可以重新打开、重新生成或导出。
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <LinkButton href="/app/exports" variant="secondary">
-            <Download size={15} />
-            导出与反馈
-          </LinkButton>
-          <LinkButton href="/app/planner">
-            <Plus size={15} />
-            新建计划
-          </LinkButton>
-        </div>
+      <header>
+        <h1 className="text-lg font-semibold tracking-tight text-ink-900">我的行程库</h1>
+        <p className="mt-1 text-xs text-ink-400">
+          所有生成过的行程都在这里，可以重新打开、重新生成或导出。
+        </p>
       </header>
 
       {/* 数据库读失败（例如还没执行建表 SQL）时，给出可执行的提示 */}

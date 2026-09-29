@@ -12,6 +12,7 @@ import {
   recordRun,
   replaceItinerary,
   saveVersionSnapshot,
+  setCurrentVersion,
   updatePlanInput,
 } from "./repository";
 import { daysBetween, parsePlannerInput } from "./validation";
@@ -159,7 +160,8 @@ export async function restoreVersion(
     return { ok: false, error: "找不到这个历史版本，可能已经被清理了。", notFound: true };
   }
 
-  const { input, itinerary } = version.data;
+  const { snapshot, version: versionNumber } = version.data;
+  const { input, itinerary } = snapshot;
 
   // 1) 恢复条件
   const days = daysBetween(input.startDate, input.endDate);
@@ -172,6 +174,11 @@ export async function restoreVersion(
 
   const saved = await markPlanSaved(planId, itinerary);
   if (!saved.ok) return { ok: false, error: saved.error, planId };
+
+  // 3) 记下「当前展示的是第几版」，抽屉头部会显示这个数字。
+  //    按尽力而为处理：内容已经回滚成功了，不该因为这一句失败就报「回滚失败」；
+  //    万一 current_version 列还没建，读的时候会退回默认值 1。
+  await setCurrentVersion(planId, versionNumber);
 
   const fresh = await findPlanById(userId, planId);
   if (!fresh.ok) return { ok: false, error: fresh.error, planId };

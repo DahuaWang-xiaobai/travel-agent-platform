@@ -71,7 +71,7 @@ export function renderTripMarkdown(plan: TripPlan): string {
   }
 
   lines.push("---", "");
-  lines.push("由 Wayfarer Agent 生成 · 预算与时间为模型估算，出行前请再次核实");
+  lines.push("由 Wayfarer 生成 · 预算与时间为模型估算，出行前请再次核实");
 
   return lines.join("\n");
 }

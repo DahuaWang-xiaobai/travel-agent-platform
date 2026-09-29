@@ -27,8 +27,14 @@ import {
 
 export type DbResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
-/** 一次把行程 + 每日安排 + 活动项查出来（Supabase 支持按外键嵌套查询） */
-const PLAN_SELECT = "id,title,origin,destination,start_date,end_date,days,budget,preferences,pace,status,error_message,summary,highlights,notices,budget_breakdown,created_at,itinerary_days(id,day_index,title,summary,day_budget,itinerary_items(id,start_time,end_time,place_name,category,notes,estimated_cost))";
+/**
+ * 一次把行程 + 每日安排 + 活动项查出来（Supabase 支持按外键嵌套查询）。
+ *
+ * ⚠️ 这里是**显式列清单**，不是 select("*")。
+ * 表里新增字段时，必须同步加到这里 —— 否则 mapper 读到的永远是 undefined，
+ * 界面会静默退回默认值（`current_version` 就这么漏过一次）。
+ */
+const PLAN_SELECT = "id,title,origin,destination,start_date,end_date,days,budget,preferences,pace,status,error_message,summary,highlights,notices,budget_breakdown,created_at,current_version,itinerary_days(id,day_index,title,summary,day_budget,itinerary_items(id,start_time,end_time,place_name,category,notes,estimated_cost))";
 
 /** 列表页不查每日安排，避免一次拖回大量数据 */
 const SUMMARY_SELECT = "id,title,origin,destination,start_date,end_date,days,budget,preferences,pace,status,error_message,summary,created_at,updated_at";
@@ -356,6 +362,11 @@ export async function saveVersionSnapshot(
 
   if (insertError) return { ok: false, error: describeDbError(insertError) };
 
+  // 刚存下的这一版就是当前展示的版本。
+  // 和 pruneVersions 一样按「尽力而为」处理：写失败不该让已经生成好的行程变成失败，
+  // 读的时候会退回默认值 1。
+  await supabase.from("trip_plans").update({ current_version: nextVersion }).eq("id", planId);
+
   await pruneVersions(planId);
 
   return { ok: true, data: null };
@@ -468,16 +479,16 @@ export async function listPlanVersions(
   };
 }
 
-/** 取某个版本存的完整快照，回滚时用 */
+/** 取某个版本存的完整快照（含版本号），回滚时用 */
 export async function findPlanVersionSnapshot(
   planId: string,
   versionId: string,
-): Promise<DbResult<TripPlanSnapshot | null>> {
+): Promise<DbResult<{ snapshot: TripPlanSnapshot; version: number } | null>> {
   const supabase = createClient();
 
   const { data, error } = await supabase
     .from("trip_plan_versions")
-    .select("snapshot")
+    .select("snapshot,version")
     .eq("trip_plan_id", planId)
     .eq("id", versionId)
     .maybeSingle();
@@ -485,5 +496,22 @@ export async function findPlanVersionSnapshot(
   if (error) return { ok: false, error: describeDbError(error) };
   if (!data) return { ok: true, data: null };
 
-  return { ok: true, data: (data as { snapshot: TripPlanSnapshot }).snapshot };
+  const row = data as { snapshot: TripPlanSnapshot; version: number };
+  return { ok: true, data: { snapshot: row.snapshot, version: row.version } };
+}
+
+/** 把「当前展示的是第几版」改成指定版本，回滚成功后调用 */
+export async function setCurrentVersion(
+  planId: string,
+  version: number,
+): Promise<DbResult<null>> {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from("trip_plans")
+    .update({ current_version: version, updated_at: new Date().toISOString() })
+    .eq("id", planId);
+
+  if (error) return { ok: false, error: describeDbError(error) };
+  return { ok: true, data: null };
 }

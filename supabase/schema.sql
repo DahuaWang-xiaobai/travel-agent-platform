@@ -110,6 +110,29 @@ create table if not exists public.trip_plans (
   updated_at       timestamptz not null default now()
 );
 
+-- 当前展示的是第几版：生成成功时写成本次新增的版本号，回滚时改成被回滚的那一版。
+-- 导出行程 / 提交反馈时会显示这个数字，避免用户操作错版本。
+-- 下面这句是给已经建过表的数据库补列，可以重复执行。
+alter table public.trip_plans
+  add column if not exists current_version int not null default 1;
+
+-- 一次性回填（可选，默认注释掉）：
+-- 把在这句之前就已经存在的行程，「当前版本」对齐到它的最新版本，
+-- 否则这些老行程会一直显示 V1。
+--
+-- ⚠️ 只在**第一次**补这一列时执行一次。一旦你用过「回滚到某个版本」，
+--    再跑这句会把版本号错误地改回最新版，所以不要放回常规执行流程。
+--
+-- update public.trip_plans p
+-- set current_version = v.max_version
+-- from (
+--   select trip_plan_id, max(version) as max_version
+--   from public.trip_plan_versions
+--   group by trip_plan_id
+-- ) v
+-- where v.trip_plan_id = p.id
+--   and p.current_version < v.max_version;
+
 alter table public.trip_plans enable row level security;
 
 -- 只能看自己的；管理员可以看全部

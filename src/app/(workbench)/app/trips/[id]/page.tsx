@@ -9,7 +9,6 @@ import {
   Download,
   Loader2,
   MapPin,
-  RefreshCw,
   Sparkles,
   Wallet,
 } from "lucide-react";
@@ -20,13 +19,18 @@ import {
   findPlanById,
   listPlanVersions,
 } from "@/lib/trips/repository";
+import { getShareState } from "@/lib/trips/sharing";
 import { formatCNY, formatDateCN, paceMeta, planStatusMeta } from "@/lib/utils";
-import { Badge, Button, EmptyState, LinkButton } from "@/components/ui";
+import { Badge, Button, EmptyState, LinkButton, buttonClass } from "@/components/ui";
 import { BudgetCard, DayCard } from "@/components/trip-view";
 import { CoverImage } from "@/components/cover-image";
 import { RegenerateButton } from "@/components/regenerate-button";
 import { PlanConditionsEditor } from "@/components/plan-conditions-editor";
 import { VersionHistory } from "@/components/version-history";
+import {
+  OutputDrawerTrigger,
+  TripOutputDrawer,
+} from "@/components/trip-output-drawer";
 
 export async function generateMetadata({
   params,
@@ -103,6 +107,20 @@ export default async function TripDetailPage({ params }: { params: { id: string 
   const versionResult = await listPlanVersions(trip.id);
   const versions = versionResult.ok ? versionResult.data : [];
 
+  // 分享状态：右侧抽屉的导出/分享面板要用（原先由独立的导出页读取）
+  const shareResult = await getShareState(user.id, trip.id);
+  const share = shareResult.ok ? shareResult.data : null;
+
+  // 抽屉头部要写明「作用于当前查看版本」，避免用户导出错版本
+  const drawerPlan = {
+    id: trip.id,
+    origin: trip.origin,
+    destination: trip.destination,
+    days: trip.days,
+    currentVersion: trip.currentVersion,
+    canExport: hasItinerary,
+  };
+
   return (
     <div className="mx-auto max-w-[1400px] space-y-6">
       {/* 顶部操作条 */}
@@ -123,16 +141,11 @@ export default async function TripDetailPage({ params }: { params: { id: string 
             <CheckCircle2 size={15} />
             已在行程库中
           </Button>
-          <RegenerateButton
-            planId={trip.id}
-            variant="secondary"
-            size="md"
-            label={trip.status === "failed" ? "重试生成" : "再次生成"}
-          />
-          <LinkButton href="/app/exports">
+          {/* 重新生成统一走下面的「行程条件」面板，这里只留导出 */}
+          <OutputDrawerTrigger className={buttonClass("primary", "md")}>
             <Download size={15} />
             导出
-          </LinkButton>
+          </OutputDrawerTrigger>
         </div>
       </div>
 
@@ -221,8 +234,12 @@ export default async function TripDetailPage({ params }: { params: { id: string 
           )}
         </section>
 
-        {/* 右：预算与注意事项 */}
-        <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+        {/*
+          右侧信息栏跟随滚动。
+          除了 sticky，还要限高 + 内部滚动：否则这一栏比视口高的时候，
+          sticky 会把顶部钉住，底部内容反而永远看不到。
+        */}
+        <aside className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
           {hasItinerary ? (
             <BudgetCard breakdown={trip.budgetBreakdown} total={trip.budget} days={trip.days} />
           ) : null}
@@ -289,13 +306,6 @@ export default async function TripDetailPage({ params }: { params: { id: string 
             </div>
           ) : null}
 
-          <div className="flex items-start gap-2">
-            <RegenerateButton planId={trip.id} className="flex-1" label="重新生成" />
-            <LinkButton href="/app/exports" size="sm" className="flex-1 justify-center">
-              <RefreshCw size={14} />
-              导出 / 反馈
-            </LinkButton>
-          </div>
         </aside>
       </div>
 
@@ -307,6 +317,24 @@ export default async function TripDetailPage({ params }: { params: { id: string 
         autoKeep={AUTO_KEEP_VERSIONS}
         loadError={versionResult.ok ? null : versionResult.error}
       />
+
+      {/* 底部操作区：重新生成 + 导出 / 反馈 */}
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <RegenerateButton
+          planId={trip.id}
+          className="flex-1"
+          variant="secondary"
+          size="md"
+          label={trip.status === "failed" ? "重试生成" : "重新生成"}
+        />
+        <OutputDrawerTrigger className={buttonClass("primary", "md", "flex-1")}>
+          <Download size={15} />
+          导出 / 反馈
+        </OutputDrawerTrigger>
+      </div>
+
+      {/* 导出 / 分享 / 反馈抽屉：页面上任意「导出」按钮都能唤起它 */}
+      <TripOutputDrawer plan={drawerPlan} share={share} />
     </div>
   );
 }

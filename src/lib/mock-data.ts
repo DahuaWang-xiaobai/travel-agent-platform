@@ -10,73 +10,6 @@ import type { ItineraryDay, TripPlan } from "./types";
  */
 
 /* ------------------------------------------------------------------ */
-/* 官网首页：产品价值 / 使用场景 / 能力清单                              */
-/* ------------------------------------------------------------------ */
-
-export const productValues = [
-  {
-    icon: "sparkles",
-    title: "结构化行程，不是一段聊天回复",
-    description:
-      "提交需求后直接拿到可编辑的每日行程：时间、地点、花费、移动顺序全部落到卡片上。",
-  },
-  {
-    icon: "wallet",
-    title: "预算拆分到每一天",
-    description:
-      "总预算自动拆成交通、住宿、餐饮、门票与其他，生成前就告诉你钱花在哪。",
-  },
-  {
-    icon: "route",
-    title: "按真实路线排，不绕路",
-    description:
-      "Agent 会按地理位置与营业时间串联景点，避免上午城东下午城西的无效奔波。",
-  },
-  {
-    icon: "history",
-    title: "计划可保存、可重生成",
-    description:
-      "每次生成都进入你的行程库，可以换偏好重新生成，也可以直接导出带走。",
-  },
-];
-
-export const useCases = [
-  {
-    tag: "周末短途",
-    title: "周五下班说走就走",
-    description: "3 天 2 晚的城市漫游，重点解决住哪、吃什么、路线怎么串。",
-    example: "上海 → 厦门 · 3 天 · 预算 ¥2,500",
-  },
-  {
-    tag: "年假旅行",
-    title: "5-7 天深度自由行",
-    description: "覆盖主要区域与必看景点，控好每天节奏，避免行程太满或太空。",
-    example: "北京 → 京都 · 5 天 · 预算 ¥9,800",
-  },
-  {
-    tag: "家庭出行",
-    title: "带父母小孩的松弛行程",
-    description: "减少换乘与步行强度，优先安排无障碍与休息点，预算上浮留余量。",
-    example: "广州 → 成都 · 4 天 · 预算 ¥5,200",
-  },
-  {
-    tag: "美食主题",
-    title: "按吃法倒推路线",
-    description: "先定必吃清单，再把餐厅周边的景点顺路串进去，一天不浪费。",
-    example: "杭州 → 成都 · 4 天 · 预算 ¥3,500",
-  },
-];
-
-export const capabilityList = [
-  "旅行需求表单",
-  "任务进度状态条",
-  "Day by Day 行程卡片",
-  "预算拆分卡片",
-  "历史记录列表",
-  "错误重试与反馈",
-];
-
-/* ------------------------------------------------------------------ */
 /* 行程：成都 / 京都 / 厦门 为完整数据，用于详情页与 Demo 展示            */
 /* ------------------------------------------------------------------ */
 
@@ -607,6 +540,7 @@ export const trips: TripPlan[] = [
     pace: "standard",
     status: "saved",
     createdAt: "2026-04-12 10:24",
+    currentVersion: 1,
     errorMessage: null,
     summary:
       "以「吃」为主线串起市区经典点位，熊猫基地安排在第二天早上，整体步行量与换乘都控制在中等强度。",
@@ -637,6 +571,7 @@ export const trips: TripPlan[] = [
     pace: "relaxed",
     status: "exported",
     createdAt: "2026-03-18 21:05",
+    currentVersion: 2,
     errorMessage: null,
     summary:
       "按东西两条主线拆分 5 天，避免同一天跨城往返；每天保留 2 小时自由时间，适合喜欢慢慢逛的旅行者。",
@@ -666,6 +601,7 @@ export const trips: TripPlan[] = [
     pace: "standard",
     status: "saved",
     createdAt: "2026-05-28 09:41",
+    currentVersion: 1,
     errorMessage: null,
     summary:
       "紧凑但不过量的 3 天线路，鼓浪屿单独占一整天，其余时间留在本岛解决吃喝与海景。",
@@ -695,6 +631,7 @@ export const trips: TripPlan[] = [
     pace: "relaxed",
     status: "generating",
     createdAt: "2026-06-24 15:12",
+    currentVersion: 1,
     errorMessage: null,
     summary: "Agent 正在串联环洱海的租车点、住宿与观景平台，预计 20 秒内完成。",
     highlights: [],
@@ -715,6 +652,7 @@ export const trips: TripPlan[] = [
     pace: "standard",
     status: "failed",
     createdAt: "2026-01-02 20:33",
+    currentVersion: 1,
     errorMessage: "weather_source_timeout：外部天气信息源 30s 未响应",
     summary: "生成失败：外部天气信息源超时，未能确认冰雪大世界当期开放时段。",
     highlights: [],

@@ -111,8 +111,8 @@ export function VersionHistory({
             历史版本
           </h2>
           <p className="mt-1 text-xs leading-relaxed text-ink-400">
-            每次生成都会留一份快照：自动保留最近 {autoKeep} 个；另外可以手动收藏 {pinLimit} 个，
-            收藏的版本不会被自动淘汰。
+            每次 AI 生成行程自动保存快照。系统自动保留最近 {autoKeep} 个版本；最多可手动收藏{" "}
+            {pinLimit} 个版本，收藏版本永久保留，不会自动清理。
           </p>
         </div>
         {versions.length > 0 ? (

@@ -2,13 +2,6 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Logo, LinkButton } from "@/components/ui";
 
-const navItems = [
-  { href: "/#features", label: "产品能力" },
-  { href: "/#usecases", label: "使用场景" },
-  { href: "/#demos", label: "示例行程" },
-  { href: "/#flow", label: "工作流程" },
-];
-
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-ink-200/70 bg-white/80 backdrop-blur-xl">
@@ -16,18 +9,6 @@ export function SiteHeader() {
         <Link href="/" className="shrink-0">
           <Logo />
         </Link>
-
-        <nav className="hidden items-center gap-1 md:flex">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-ink-600 transition hover:bg-ink-100 hover:text-ink-900"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
 
         <div className="flex items-center gap-2">
           <LinkButton href="/app/login" variant="ghost" size="sm" className="hidden sm:inline-flex">
@@ -47,9 +28,10 @@ const footerColumns = [
   {
     title: "产品",
     links: [
-      { label: "产品能力", href: "/#features" },
-      { label: "使用场景", href: "/#usecases" },
+      { label: "核心工作流", href: "/#workflow" },
+      { label: "行程管理", href: "/#manage" },
       { label: "示例行程", href: "/#demos" },
+      { label: "用户反馈", href: "/#reviews" },
     ],
   },
   {
@@ -57,8 +39,8 @@ const footerColumns = [
     links: [
       { label: "登录", href: "/app/login" },
       { label: "注册", href: "/app/register" },
-      { label: "开始规划", href: "/app/planner" },
-      { label: "我的行程库", href: "/app/history" },
+      { label: "生成行程", href: "/app/planner" },
+      { label: "我保存的行程", href: "/app/history" },
     ],
   },
   {
@@ -75,9 +57,9 @@ export function SiteFooter() {
     <footer className="border-t border-ink-200 bg-white">
       <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:grid-cols-2 lg:grid-cols-4">
         <div className="sm:col-span-2 lg:col-span-1">
-          <Logo subtitle="智能旅游规划 Agent 平台" />
+          <Logo subtitle="把旅行安排明白" />
           <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink-500">
-            把一句旅行需求，变成可执行、可保存、可导出的每日行程。
+            一句想法，一份能照着走的行程。
           </p>
         </div>
         {footerColumns.map((column) => (
@@ -101,11 +83,8 @@ export function SiteFooter() {
         ))}
       </div>
       <div className="border-t border-ink-100">
-        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-2 px-5 py-6 text-xs text-ink-400 sm:flex-row sm:items-center">
-          <p>© 2026 Wayfarer Agent · 官网 Demo 为示例数据，用户工作台已接入真实模型与数据库</p>
-          <p className="font-mono">
-            www.xxx.com · app.xxx.com · admin.xxx.com
-          </p>
+        <div className="mx-auto max-w-6xl px-5 py-6 text-xs text-ink-400">
+          <p>© 2026 Wayfarer · 示例行程为演示数据</p>
         </div>
       </div>
     </footer>

@@ -25,7 +25,7 @@ export async function generateMetadata({
   const title = result.ok && result.data ? result.data.title : "行程分享";
   return {
     title,
-    description: "由 Wayfarer Agent 生成的旅行行程",
+    description: "由 Wayfarer 生成的旅行行程",
   };
 }
 
@@ -173,7 +173,7 @@ export default async function SharedTripPage({ params }: { params: { token: stri
       {/* 底部 CTA */}
       <section className="rounded-3xl bg-brand-sheen px-8 py-10 text-center shadow-glow">
         <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
-          这份行程是 Wayfarer Agent 生成的
+          这份行程是 Wayfarer 生成的
         </h2>
         <p className="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-white/80">
           只要填一次旅行需求，就能拿到这样一份可执行的每日行程：时间、地点、花费和注意事项都排好。

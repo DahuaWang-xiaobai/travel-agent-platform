@@ -57,6 +57,7 @@ export interface TripPlanRow {
   budget_breakdown: Partial<BudgetBreakdown> | null;
   created_at: string;
   updated_at?: string | null;
+  current_version?: number | null;
   itinerary_days?: ItineraryDayRow[] | null;
 }
 
@@ -160,6 +161,7 @@ export function toTripPlan(row: TripPlanRow): TripPlan {
     pace: row.pace as Pace,
     status: row.status as PlanStatus,
     createdAt: formatDateTime(row.created_at),
+    currentVersion: num(row.current_version, 1),
     summary: row.summary ?? "",
     errorMessage: row.error_message,
     highlights: strArray(row.highlights),

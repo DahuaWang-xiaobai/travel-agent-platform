@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
   AlertTriangle,
   CalendarRange,
@@ -12,6 +11,7 @@ import {
   Loader2,
   RefreshCw,
   Sparkles,
+  Square,
   Wand2,
 } from "lucide-react";
 import type { Pace, PlannerInput, QuotaState, TripPlan } from "@/lib/types";
@@ -59,6 +59,10 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [provider, setProvider] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** 正在进行的请求，用于「终止任务」 */
+  const abortRef = useRef<AbortController | null>(null);
+  /** 用户主动终止过：回到待提交态，但要给出提示 */
+  const [cancelled, setCancelled] = useState(false);
 
   // 额度用完就禁用按钮。两个来源：
   //   1. 服务端渲染时读到的 quota（页面刚打开就已知用完）
@@ -85,6 +89,7 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
   useEffect(() => {
     return () => {
       if (timer.current) clearInterval(timer.current);
+      abortRef.current?.abort();
     };
   }, []);
 
@@ -116,6 +121,7 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
     setResult(null);
     setErrorMessage(null);
     setProvider(null);
+    setCancelled(false);
 
     // 真实请求无法回报进度，用动画表达「正在处理」：最多爬到 90% 等结果回来
     stopProgress();
@@ -123,11 +129,15 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
       setProgress((prev) => (prev >= 90 ? prev : prev + Math.random() * 5 + 1.5));
     }, 220);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const response = await fetch("/api/trips/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
+        signal: controller.signal,
       });
       const data = (await response.json().catch(() => ({}))) as {
         plan?: TripPlan;
@@ -157,12 +167,31 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
 
       // 让历史记录页的数据失效，切过去能立刻看到这份新行程
       router.refresh();
-    } catch {
+    } catch (err) {
+      // 用户点了「终止任务」：不算失败，界面回到待提交态（由 cancelPlanning 处理）
+      if (err instanceof DOMException && err.name === "AbortError") return;
+
       setPhase("error");
       setErrorMessage("网络异常，没能连接到服务器，请检查网络后重试。");
     } finally {
       stopProgress();
+      abortRef.current = null;
     }
+  }
+
+  /**
+   * 终止任务：只断开前端请求，不新增接口。
+   *
+   * 注意这里没有「退款」能力 —— 服务端一旦开始生成就会跑完，
+   * 额度也已经扣掉，行程可能照样落库。所以界面必须如实说明，不能让用户以为白点了一下。
+   */
+  function cancelPlanning() {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    stopProgress();
+    setProgress(0);
+    setPhase("idle");
+    setCancelled(true);
   }
 
   const activeStage = Math.min(stages.length - 1, Math.floor((progress / 100) * stages.length));
@@ -325,7 +354,7 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
 
             <div>
               <span className="label">旅行节奏</span>
-              <div className="grid gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {(Object.keys(paceMeta) as Pace[]).map((pace) => {
                   const selected = input.pace === pace;
                   return (
@@ -334,7 +363,7 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
                       type="button"
                       onClick={() => update("pace", pace)}
                       className={cn(
-                        "flex items-start gap-3 rounded-xl border px-3.5 py-2.5 text-left transition",
+                        "rounded-xl border px-2 py-3 text-center transition",
                         selected
                           ? "border-brand-300 bg-brand-50/60"
                           : "border-ink-200 bg-white hover:border-brand-200",
@@ -342,19 +371,14 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
                     >
                       <span
                         className={cn(
-                          "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
-                          selected ? "border-brand-500 bg-brand-500" : "border-ink-300",
+                          "block text-xs font-semibold",
+                          selected ? "text-brand-700" : "text-ink-800",
                         )}
                       >
-                        {selected ? <span className="h-1.5 w-1.5 rounded-full bg-white" /> : null}
+                        {paceMeta[pace].label}
                       </span>
-                      <span>
-                        <span className="block text-xs font-semibold text-ink-800">
-                          {paceMeta[pace].label}
-                        </span>
-                        <span className="mt-0.5 block text-[11px] text-ink-500">
-                          {paceMeta[pace].hint}
-                        </span>
+                      <span className="mt-1 block text-[10px] leading-snug text-ink-400">
+                        {paceMeta[pace].hint}
                       </span>
                     </button>
                   );
@@ -385,73 +409,144 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
                 </>
               )}
             </Button>
+            {/* 任务进度：紧贴发起按钮，四种状态各有明确的样子 */}
+            <div
+              className={cn(
+                "rounded-xl border p-4 transition",
+                phase === "error"
+                  ? exhausted
+                    ? "border-amber-200 bg-amber-50/60"
+                    : "border-rose-200 bg-rose-50/60"
+                  : phase === "done"
+                    ? "border-emerald-200 bg-emerald-50/60"
+                    : phase === "running"
+                      ? "border-brand-200 bg-brand-50/50"
+                      : "border-ink-200 bg-ink-50/60",
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-ink-700">任务进度</p>
+                {phase === "idle" ? (
+                  <Badge>待生成</Badge>
+                ) : phase === "running" ? (
+                  <Badge tone="info">
+                    <Loader2 size={11} className="animate-spin" />
+                    生成中 {Math.round(progress)}%
+                  </Badge>
+                ) : phase === "error" ? (
+                  <Badge tone={exhausted ? "warning" : "danger"}>
+                    <AlertTriangle size={11} />
+                    {exhausted ? "额度已用完" : "生成失败"}
+                  </Badge>
+                ) : (
+                  <Badge tone="success">
+                    <CheckCircle2 size={11} />
+                    已保存到行程库
+                  </Badge>
+                )}
+              </div>
+
+              <ProgressBar
+                value={phase === "idle" ? 0 : phase === "done" ? 100 : progress}
+                tone={phase === "error" ? "danger" : phase === "done" ? "success" : "brand"}
+                className="mt-3"
+              />
+
+              {/* 待提交：灰置，只说清楚下一步会发生什么 */}
+              {phase === "idle" ? (
+                <p className="mt-3 text-[11px] leading-relaxed text-ink-400">
+                  {cancelled
+                    ? "已终止本次生成。服务端可能已经扣掉 1 次额度，如果行程已经生成完，它会出现在「我的行程库」里。"
+                    : "点上面的按钮开始，这里会显示每一步的进展。"}
+                </p>
+              ) : null}
+
+              {/* 生成中 / 已完成：分步任务清单 */}
+              {phase === "running" || phase === "done" ? (
+                <ul className="mt-3 space-y-2">
+                  {stages.map((stage, index) => {
+                    const done = phase === "done" || index < activeStage;
+                    const active = phase === "running" && index === activeStage;
+                    return (
+                      <li
+                        key={stage}
+                        className={cn(
+                          "flex items-center gap-2 text-xs",
+                          done ? "text-ink-600" : active ? "text-brand-700" : "text-ink-400",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "flex h-4 w-4 items-center justify-center rounded-full border text-[9px]",
+                            done
+                              ? "border-emerald-300 bg-emerald-50 text-emerald-600"
+                              : active
+                                ? "border-brand-400 bg-brand-50 text-brand-600"
+                                : "border-ink-200 text-ink-300",
+                          )}
+                        >
+                          {done ? "✓" : index + 1}
+                        </span>
+                        {stage}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+
+              {/* 生成中：可以终止 */}
+              {phase === "running" ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-3 w-full justify-center"
+                  onClick={cancelPlanning}
+                >
+                  <Square size={12} />
+                  终止任务
+                </Button>
+              ) : null}
+
+              {/* 失败：红色提示 + 重试，表单内容原样保留 */}
+              {phase === "error" ? (
+                <>
+                  <p
+                    className={cn(
+                      "mt-3 text-xs leading-relaxed",
+                      exhausted ? "text-amber-800" : "text-rose-700",
+                    )}
+                  >
+                    {errorMessage}
+                  </p>
+                  <p className="mt-2 text-[11px] leading-relaxed text-ink-400">
+                    {exhausted
+                      ? "这是演示站点为控制模型成本设的上限，额度每天自动重置。你填的条件都还在。"
+                      : "表单内容都还在，可以直接重试。"}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {/* 额度用完时不给「重试」：重试也不会成功，只会让人反复撞墙 */}
+                    {exhausted ? null : (
+                      <Button size="sm" onClick={startPlanning}>
+                        <RefreshCw size={13} />
+                        重试
+                      </Button>
+                    )}
+                    <LinkButton href="/app/history" variant="secondary" size="sm">
+                      去我的行程库
+                    </LinkButton>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
             <p className="text-center text-[11px] text-ink-400">
               {exhausted
                 ? "额度每天自动重置，明天可以继续生成"
                 : quota.status === "active"
                   ? `提交后由模型生成并保存到行程库，本次会消耗 1 次额度（今日剩余 ${quota.remaining} 次）`
-                  : "提交后会调用后端接口，由模型生成结构化行程并保存到你的行程库"}
+                  : "提交后会调用后端接口，由模型生成行程并保存到你的行程库"}
             </p>
           </div>
-        </div>
-
-        {/* 任务进度状态条 */}
-        <div className="card p-5">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-ink-900">任务进度</p>
-            {phase === "idle" ? (
-              <Badge>待生成</Badge>
-            ) : phase === "running" ? (
-              <Badge tone="info">
-                <Loader2 size={11} className="animate-spin" />
-                生成中 {Math.round(progress)}%
-              </Badge>
-            ) : phase === "error" ? (
-              <Badge tone="danger">
-                <AlertTriangle size={11} />
-                生成失败
-              </Badge>
-            ) : (
-              <Badge tone="success">
-                <CheckCircle2 size={11} />
-                已保存到行程库
-              </Badge>
-            )}
-          </div>
-          <ProgressBar
-            value={progress}
-            tone={phase === "error" ? "danger" : phase === "done" ? "success" : "brand"}
-            className="mt-4"
-          />
-          <ul className="mt-4 space-y-2">
-            {stages.map((stage, index) => {
-              const done = phase === "done" || (phase === "running" && index < activeStage);
-              const active = phase === "running" && index === activeStage;
-              return (
-                <li
-                  key={stage}
-                  className={cn(
-                    "flex items-center gap-2 text-xs",
-                    done ? "text-ink-600" : active ? "text-brand-700" : "text-ink-400",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex h-4 w-4 items-center justify-center rounded-full border text-[9px]",
-                      done
-                        ? "border-emerald-300 bg-emerald-50 text-emerald-600"
-                        : active
-                          ? "border-brand-400 bg-brand-50 text-brand-600"
-                          : "border-ink-200 text-ink-300",
-                    )}
-                  >
-                    {done ? "✓" : index + 1}
-                  </span>
-                  {stage}
-                </li>
-              );
-            })}
-          </ul>
         </div>
       </section>
 
@@ -473,71 +568,67 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
         ) : null}
 
         {phase === "running" ? (
-          <div className="card p-5">
-            <div className="flex items-center gap-2 text-sm font-semibold text-ink-900">
-              <Loader2 size={16} className="animate-spin text-brand-600" />
-              Agent 正在编排 {input.destination} {days} 天行程
-            </div>
-            <p className="mt-1.5 text-xs text-ink-500">
-              正在检索 POI 与开放时间，并计算每日路线顺序…
+          <div className="space-y-4">
+            <p className="flex items-center gap-2 text-xs text-ink-400">
+              <Loader2 size={13} className="animate-spin text-brand-600" />
+              正在生成 {input.destination} {days} 天行程，左侧可以看到每一步的进展
             </p>
-            <div className="mt-5 space-y-3">
-              {[1, 2, 3, 4].map((row) => (
-                <div key={row} className="flex items-center gap-3">
-                  <div className="skeleton h-8 w-8 rounded-xl" />
-                  <div className="flex-1 space-y-2">
-                    <div className="skeleton h-3 w-1/3" />
-                    <div className="skeleton h-3 w-2/3" />
+
+            {/* 骨架按真实行程的版式摆，结果回来时页面不会大幅跳动 */}
+            <div aria-hidden className="space-y-4">
+              <div className="card overflow-hidden">
+                <div className="skeleton h-36 w-full" />
+                <div className="p-5">
+                  <div className="grid grid-cols-3 gap-3">
+                    {[0, 1, 2].map((cell) => (
+                      <div key={cell} className="rounded-xl border border-ink-100 bg-ink-50/60 py-3">
+                        <div className="skeleton mx-auto h-3 w-10" />
+                        <div className="skeleton mx-auto mt-2 h-4 w-16" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-5 space-y-2">
+                    {[0, 1, 2].map((row) => (
+                      <div key={row} className="skeleton h-3 w-2/3" />
+                    ))}
                   </div>
                 </div>
-              ))}
+              </div>
+
+              <div className="space-y-3">
+                {Array.from({ length: Math.min(Math.max(days, 1), 7) }).map((_, day) => (
+                  <div key={day} className="card p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="skeleton h-7 w-7 rounded-lg" />
+                        <div className="skeleton h-3.5 w-44" />
+                      </div>
+                      <div className="skeleton h-3 w-12" />
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {[0, 1, 2].map((row) => (
+                        <div key={row} className="skeleton h-3 w-3/4" />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         ) : null}
 
+        {/* 失败原因与重试都在左侧的任务进度里，这里只做占位，避免两处重复 */}
         {phase === "error" ? (
-          <div className={cn("card p-6", exhausted ? "border-amber-200" : "border-rose-200")}>
-            <div className="flex items-start gap-3">
-              <span
-                className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                  exhausted ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600",
-                )}
-              >
-                <AlertTriangle size={17} />
-              </span>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink-900">
-                  {exhausted ? "今日生成额度已用完" : "这次生成没有成功"}
-                </p>
-                <p
-                  className={cn(
-                    "mt-1.5 text-xs leading-relaxed",
-                    exhausted ? "text-amber-800" : "text-rose-700",
-                  )}
-                >
-                  {errorMessage}
-                </p>
-                <p className="mt-3 text-[11px] leading-relaxed text-ink-400">
-                  {exhausted
-                    ? "这是演示站点为控制模型成本设的上限，额度每天自动重置。你已有的行程不受影响，仍可在「历史计划」里查看、导出和分享。"
-                    : "如果这条任务已经创建成功，它会出现在「历史计划」里，可以直接重试，不需要重新填表。"}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {/* 额度用完时不给「重试」：重试也不会成功，只会让人反复撞墙 */}
-                  {exhausted ? null : (
-                    <Button size="sm" onClick={startPlanning}>
-                      <RefreshCw size={13} />
-                      重试
-                    </Button>
-                  )}
-                  <LinkButton href="/app/history" variant="secondary" size="sm">
-                    去历史记录看看
-                  </LinkButton>
-                </div>
-              </div>
-            </div>
-          </div>
+          <EmptyState
+            icon={<AlertTriangle size={18} />}
+            title="这次没有生成成功的行程"
+            description="失败原因和重试按钮在左侧的「任务进度」里。"
+            action={
+              <LinkButton href="/app/history" variant="secondary" size="sm">
+                去我的行程库
+              </LinkButton>
+            }
+          />
         ) : null}
 
         {result && phase === "done" ? (
@@ -545,9 +636,19 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
               <p className="flex items-center gap-2 text-xs font-medium text-emerald-800">
                 <CheckCircle2 size={14} />
-                已生成并写入数据库，可在「历史计划」中再次打开
+                已生成并写入数据库，可在「我的行程库」中再次打开
               </p>
               <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={startPlanning}
+                  disabled={exhausted}
+                  title="用当前表单里的条件再生成一份"
+                >
+                  <RefreshCw size={13} />
+                  再次生成
+                </Button>
                 <LinkButton href={`/app/trips/${result.id}`} variant="secondary" size="sm">
                   查看行程详情
                 </LinkButton>
