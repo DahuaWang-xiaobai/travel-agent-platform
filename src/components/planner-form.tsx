@@ -22,12 +22,24 @@ import { CityCombobox } from "@/components/city-combobox";
 import { TripPreview } from "@/components/trip-view";
 
 /** 生成阶段文案，对应 PRD 的「长任务必须有状态反馈」 */
-const stages = [
+const defaultStages = [
   "解析旅行需求",
   "检索 POI 与开放时间",
   "编排每日路线与顺序",
   "拆分预算与注意事项",
 ];
+
+type PlannerFormProps = {
+  quota: QuotaState;
+  /**
+   * 生成阶段文案。默认是产品内部措辞；对外素材（官网首页复刻、Hero 视频截图）
+   * 传入营销文案，理由同 marketing-shots.tsx 里那条刻意偏离：面向普通用户时不出现
+   * POI 这类内部术语。
+   */
+  stages?: string[];
+  /** 结果预览角标文案，同样只在对外素材里覆盖。 */
+  generatedLabel?: string;
+};
 
 function isoDate(offsetDays: number) {
   const date = new Date();
@@ -49,7 +61,11 @@ const defaultInput: PlannerInput = {
 
 type Phase = "idle" | "running" | "done" | "error";
 
-export function PlannerForm({ quota }: { quota: QuotaState }) {
+export function PlannerForm({
+  quota,
+  stages = defaultStages,
+  generatedLabel,
+}: PlannerFormProps) {
   const router = useRouter();
 
   const [input, setInput] = useState<PlannerInput>(defaultInput);
@@ -330,7 +346,7 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
 
             <div>
               <span className="label">旅行偏好</span>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5" data-shot="pref-row">
                 {preferenceOptions.map((preference) => {
                   const selected = input.preferences.includes(preference);
                   return (
@@ -338,6 +354,7 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
                       key={preference}
                       type="button"
                       onClick={() => togglePreference(preference)}
+                      data-shot="pref-chip"
                       className={cn(
                         "rounded-full border px-3 py-1 text-xs font-medium transition",
                         selected
@@ -354,7 +371,7 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
 
             <div>
               <span className="label">旅行节奏</span>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2" data-shot="pace-row">
                 {(Object.keys(paceMeta) as Pace[]).map((pace) => {
                   const selected = input.pace === pace;
                   return (
@@ -362,6 +379,7 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
                       key={pace}
                       type="button"
                       onClick={() => update("pace", pace)}
+                      data-shot="pace-card"
                       className={cn(
                         "rounded-xl border px-2 py-3 text-center transition",
                         selected
@@ -663,7 +681,7 @@ export function PlannerForm({ quota }: { quota: QuotaState }) {
               </p>
             ) : null}
 
-            <TripPreview trip={result} />
+            <TripPreview trip={result} generatedLabel={generatedLabel} />
           </div>
         ) : null}
       </section>

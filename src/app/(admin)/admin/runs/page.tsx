@@ -33,24 +33,16 @@ export default async function AdminRunsPage() {
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-ink-900">任务与反馈</h1>
-          <p className="mt-1.5 text-sm text-ink-500">
-            失败任务可以展开查看「该行程的全部生成记录 + 关联用户反馈」，用于排查异常计划。
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Badge tone={failedCount > 0 ? "danger" : "success"}>
-            <AlertTriangle size={11} />
-            {failedCount} 个失败任务
-          </Badge>
-          <Badge tone={openCount > 0 ? "warning" : "neutral"}>
-            <ShieldCheck size={11} />
-            {openCount} 条未处理反馈
-          </Badge>
-        </div>
-      </header>
+      <div className="flex flex-wrap justify-end gap-2">
+        <Badge tone={failedCount > 0 ? "danger" : "success"}>
+          <AlertTriangle size={11} />
+          {failedCount} 个失败任务
+        </Badge>
+        <Badge tone={openCount > 0 ? "warning" : "neutral"}>
+          <ShieldCheck size={11} />
+          {openCount} 条未处理反馈
+        </Badge>
+      </div>
 
       {errors.length > 0 ? (
         <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-xs leading-relaxed text-rose-700">

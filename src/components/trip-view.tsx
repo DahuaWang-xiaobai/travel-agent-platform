@@ -160,14 +160,17 @@ export function TripCard({
   trip,
   href,
   showCover = true,
+  className,
 }: {
   trip: TripCardData;
   href?: string;
   showCover?: boolean;
+  /** 官网首页要覆盖成更轻的卡片阴影，工作台沿用 .card 的默认值 */
+  className?: string;
 }) {
   const status = planStatusMeta[trip.status];
   return (
-    <div className="card card-hover flex flex-col overflow-hidden">
+    <div className={cn("card card-hover flex flex-col overflow-hidden", className)}>
       {showCover ? (
         <div className="relative h-40 w-full overflow-hidden bg-ink-100">
           <CoverImage
@@ -238,7 +241,14 @@ export function TripCard({
 }
 
 /** 规划页右侧结果预览：紧凑版展示结构完整的行程 */
-export function TripPreview({ trip }: { trip: TripPlan }) {
+export function TripPreview({
+  trip,
+  generatedLabel = "Agent 已生成",
+}: {
+  trip: TripPlan;
+  /** 角标文案。默认是产品内部措辞；对外素材（官网首页复刻、Hero 视频截图）覆盖它。 */
+  generatedLabel?: string;
+}) {
   const dayCount = trip.itineraryDays.length;
   return (
     <div className="space-y-4">
@@ -249,7 +259,7 @@ export function TripPreview({ trip }: { trip: TripPlan }) {
           <div className="absolute bottom-4 left-4 right-4">
             <Badge tone="brand" className="bg-white/90 backdrop-blur">
               <Sparkles size={12} />
-              Agent 已生成
+              {generatedLabel}
             </Badge>
             <h3 className="mt-2 text-base font-semibold text-white">{trip.title}</h3>
           </div>

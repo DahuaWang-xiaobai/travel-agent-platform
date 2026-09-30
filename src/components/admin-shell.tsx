@@ -6,12 +6,12 @@ import { Activity, ArrowUpRight, ListChecks, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/types";
-import { Badge, Logo } from "@/components/ui";
+import { Logo } from "@/components/ui";
 import { LogoutButton } from "@/components/auth/logout-button";
 
 const navItems = [
-  { href: "/admin", label: "后台首页", icon: Activity, hint: "平台指标概览", exact: true },
-  { href: "/admin/runs", label: "任务与反馈", icon: ListChecks, hint: "失败排查与反馈" },
+  { href: "/admin", label: "后台首页", icon: Activity, exact: true },
+  { href: "/admin/runs", label: "任务与反馈", icon: ListChecks },
 ];
 
 /** 后台管理台外壳：三套入口中独立的一套视觉，强调“运营与任务中心” */
@@ -50,10 +50,7 @@ export function AdminShell({
                   )}
                 >
                   <Icon size={17} className={isActive ? "text-brand-300" : ""} />
-                  <span className="flex flex-col leading-tight">
-                    <span className="font-medium">{item.label}</span>
-                    <span className="text-[11px] text-white/35">{item.hint}</span>
-                  </span>
+                  <span className="font-medium">{item.label}</span>
                 </Link>
               );
             })}
@@ -95,32 +92,25 @@ export function AdminShell({
                 <Logo />
               </Link>
             </div>
-            <div className="hidden flex-col lg:flex">
-              <span className="text-sm font-semibold text-ink-900">运营与任务中心</span>
-              <span className="text-xs text-ink-400">admin.xxx.com · 假数据演示</span>
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <Badge tone="success">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-                服务正常
-              </Badge>
-              <nav className="flex items-center gap-1 md:flex lg:hidden">
-                {navItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "rounded-lg px-2.5 py-1.5 text-xs font-medium transition",
-                      (item.exact ? pathname === item.href : pathname?.startsWith(item.href))
-                        ? "bg-brand-50 text-brand-700"
-                        : "text-ink-500 hover:bg-ink-100",
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </nav>
-            </div>
+            <span className="hidden text-sm font-semibold text-ink-900 lg:block">
+              运营与任务中心
+            </span>
+            <nav className="ml-auto flex items-center gap-1 lg:hidden">
+              {navItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "rounded-lg px-2.5 py-1.5 text-xs font-medium transition",
+                    (item.exact ? pathname === item.href : pathname?.startsWith(item.href))
+                      ? "bg-brand-50 text-brand-700"
+                      : "text-ink-500 hover:bg-ink-100",
+                  )}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
           </div>
         </header>
 

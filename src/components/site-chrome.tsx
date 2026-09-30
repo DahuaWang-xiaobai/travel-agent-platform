@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { Logo, LinkButton } from "@/components/ui";
 
 export function SiteHeader() {
@@ -10,13 +9,15 @@ export function SiteHeader() {
           <Logo />
         </Link>
 
-        <div className="flex items-center gap-2">
-          <LinkButton href="/app/login" variant="ghost" size="sm" className="hidden sm:inline-flex">
+        <div className="flex items-center gap-1.5">
+          <Link
+            href="/app/login"
+            className="rounded-xl px-3 py-2 text-sm font-medium text-ink-600 transition hover:bg-ink-100 hover:text-ink-900"
+          >
             登录
-          </LinkButton>
-          <LinkButton href="/app/planner" size="sm">
-            免费生成行程
-            <ArrowRight size={15} />
+          </Link>
+          <LinkButton href="/app/register" size="sm">
+            注册
           </LinkButton>
         </div>
       </div>
@@ -84,7 +85,7 @@ export function SiteFooter() {
       </div>
       <div className="border-t border-ink-100">
         <div className="mx-auto max-w-6xl px-5 py-6 text-xs text-ink-400">
-          <p>© 2026 Wayfarer · 示例行程为演示数据</p>
+          <p>© 2026 Wayfarer</p>
         </div>
       </div>
     </footer>

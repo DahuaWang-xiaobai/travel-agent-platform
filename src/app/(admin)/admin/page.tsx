@@ -5,13 +5,12 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Download,
-  ListChecks,
   MessageSquare,
   TrendingUp,
 } from "lucide-react";
 import { emptyAdminMetrics, getAdminMetrics, listAdminRuns } from "@/lib/admin";
 import { cn, formatLatency, runStatusMeta } from "@/lib/utils";
-import { Badge, LinkButton, ProgressBar, ScoreStars } from "@/components/ui";
+import { Badge, ProgressBar, ScoreStars } from "@/components/ui";
 
 export const metadata: Metadata = { title: "后台首页" };
 
@@ -71,25 +70,6 @@ export default async function AdminHomePage() {
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-ink-900">平台概览</h1>
-          <p className="mt-1.5 text-sm text-ink-500">
-            全部为真实数据：来自 trip_plans / planner_runs / trip_exports / trip_feedback 四张表。
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <LinkButton href="/admin/runs" variant="secondary">
-            <ListChecks size={15} />
-            任务与反馈
-          </LinkButton>
-          <LinkButton href="/app/planner">
-            <Download size={15} />
-            去工作台
-          </LinkButton>
-        </div>
-      </header>
-
       {!metricsResult.ok ? (
         <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-xs leading-relaxed text-rose-700">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
